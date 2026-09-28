@@ -36,6 +36,19 @@ class SaveService {
           'quantity': entry.value,
         });
       }
+
+      await txn.delete('pricing');
+
+      for (final entry in state.prices.entries) {
+        if (entry.value <= 0) {
+          continue;
+        }
+
+        await txn.insert('pricing', {
+          'product_id': entry.key,
+          'sell_price': entry.value,
+        });
+      }
     });
   }
 
@@ -57,6 +70,7 @@ class SaveService {
     );
 
     final inventoryRows = await db.query('inventory');
+    final pricingRows = await db.query('pricing');
 
     int money = 1000;
     int reputation = 0;
@@ -88,12 +102,24 @@ class SaveService {
       }
     }
 
+    final prices = <String, int>{};
+
+    for (final row in pricingRows) {
+      final productId = row['product_id'] as String?;
+      final sellPrice = row['sell_price'] as int?;
+
+      if (productId != null && sellPrice != null) {
+        prices[productId] = sellPrice;
+      }
+    }
+
     return GameState(
       money: money,
       reputation: reputation,
       day: day,
       showPinyin: showPinyin,
       inventory: inventory,
+      prices: prices,
     );
   }
 }

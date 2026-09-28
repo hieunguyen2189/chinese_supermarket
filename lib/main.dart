@@ -20,7 +20,19 @@ class ChineseSupermarketApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.green,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF66BB6A),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF7FAF5),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFE8F5E9),
+          foregroundColor: Color(0xFF234D2A),
+        ),
+        cardTheme: const CardThemeData(
+          elevation: 2,
+          margin: EdgeInsets.zero,
+        ),
       ),
       home: const GameLoader(),
     );

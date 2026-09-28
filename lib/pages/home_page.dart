@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../services/save_service.dart';
 import 'inventory_page.dart';
+import 'pricing_page.dart';
 
 class HomePage extends StatefulWidget {
   final GameState gameState;
@@ -31,6 +32,28 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> _openPricing() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PricingPage(
+          gameState: widget.gameState,
+          saveService: widget.saveService,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    debugPrint(
+      'HOME AFTER PRICING: '
+          'gameState=${identityHashCode(widget.gameState)}, '
+          'prices=${widget.gameState.prices}',
+    );
 
     setState(() {});
   }
@@ -80,6 +103,21 @@ class _HomePageState extends State<HomePage> {
                   icon: const Icon(Icons.inventory_2_outlined),
                   label: const Text(
                     '📦 库存',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: OutlinedButton.icon(
+                  onPressed: _openPricing,
+                  icon: const Icon(Icons.sell_outlined),
+                  label: const Text(
+                    '🏷️ 定价',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),

@@ -4,9 +4,11 @@ class GameState {
   int day;
   bool showPinyin;
 
-  /// Số lượng từng sản phẩm đang có trong kho.
-  /// Key = product id, Value = số lượng.
   Map<String, int> inventory;
+
+  /// Giá bán hiện tại của từng sản phẩm.
+  /// Key = product id, Value = giá bán.
+  Map<String, int> prices;
 
   GameState({
     this.money = 1000,
@@ -14,7 +16,9 @@ class GameState {
     this.day = 1,
     this.showPinyin = true,
     Map<String, int>? inventory,
-  }) : inventory = inventory ?? {};
+    Map<String, int>? prices,
+  }) : inventory = inventory ?? {},
+       prices = prices ?? {};
 
   Map<String, dynamic> toJson() {
     return {
@@ -23,11 +27,13 @@ class GameState {
       'day': day,
       'showPinyin': showPinyin,
       'inventory': inventory,
+      'prices': prices,
     };
   }
 
   factory GameState.fromJson(Map<String, dynamic> json) {
     final savedInventory = <String, int>{};
+    final savedPrices = <String, int>{};
 
     final inventoryData = json['inventory'];
 
@@ -39,12 +45,23 @@ class GameState {
       });
     }
 
+    final pricesData = json['prices'];
+
+    if (pricesData is Map) {
+      pricesData.forEach((key, value) {
+        if (value is num) {
+          savedPrices[key.toString()] = value.toInt();
+        }
+      });
+    }
+
     return GameState(
       money: json['money'] is num ? json['money'].toInt() : 1000,
       reputation: json['reputation'] is num ? json['reputation'].toInt() : 0,
       day: json['day'] is num ? json['day'].toInt() : 1,
       showPinyin: json['showPinyin'] is bool ? json['showPinyin'] : true,
       inventory: savedInventory,
+      prices: savedPrices,
     );
   }
 }
