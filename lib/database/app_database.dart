@@ -22,7 +22,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE player (
@@ -47,21 +47,12 @@ class AppDatabase {
           )
         ''');
 
-        await db.execute('''
-          CREATE TABLE settings (
-            id INTEGER PRIMARY KEY,
-            show_pinyin INTEGER NOT NULL
-          )
-        ''');
-
         await db.insert('player', {
           'id': 1,
           'money': 1000,
           'reputation': 0,
           'day': 1,
         });
-
-        await db.insert('settings', {'id': 1, 'show_pinyin': 1});
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -71,6 +62,10 @@ class AppDatabase {
               sell_price INTEGER NOT NULL
             )
           ''');
+        }
+
+        if (oldVersion < 3) {
+          await db.execute('DROP TABLE IF EXISTS settings');
         }
       },
     );

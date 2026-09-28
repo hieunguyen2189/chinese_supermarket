@@ -4,6 +4,7 @@ import '../data/products.dart';
 import '../models/game_state.dart';
 import '../models/product.dart';
 import '../services/save_service.dart';
+import '../widgets/chinese_text.dart';
 
 class PricingPage extends StatefulWidget {
   final GameState gameState;
@@ -134,6 +135,7 @@ class _PricingPageState extends State<PricingPage> {
             debugPrint(
               'PRICE BUILD: ${product.id} = $price',
             );
+
             return Card(
               elevation: 2,
               color: _getCardColor(product),
@@ -169,46 +171,41 @@ class _PricingPageState extends State<PricingPage> {
                         ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                product.hanzi,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (widget.gameState.showPinyin)
-                                Text(
-                                  product.pinyin,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color:
-                                    Colors.grey.shade700,
-                                  ),
-                                ),
-                            ],
+                          child: ChineseText(
+                            text: product.hanzi,
+                            textStyle: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            pinyinStyle: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 14),
+
                     Text(
                       '进货价：${product.buyPrice} 元 / ${product.measureWord}',
                       style: const TextStyle(
                         fontSize: 15,
                       ),
                     ),
+
                     const SizedBox(height: 4),
+
                     Text(
                       '建议售价：${product.defaultSellPrice} 元',
                       style: const TextStyle(
                         fontSize: 15,
                       ),
                     ),
+
                     const SizedBox(height: 4),
+
                     Text(
                       '售价范围：'
                           '${product.minSellPrice}–'
@@ -217,7 +214,9 @@ class _PricingPageState extends State<PricingPage> {
                         fontSize: 15,
                       ),
                     ),
+
                     const SizedBox(height: 10),
+
                     Text(
                       _priceDescription(product, price),
                       style: TextStyle(
@@ -229,7 +228,9 @@ class _PricingPageState extends State<PricingPage> {
                             : Colors.green.shade700,
                       ),
                     ),
+
                     const SizedBox(height: 12),
+
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -258,6 +259,7 @@ class _PricingPageState extends State<PricingPage> {
                             ),
                             color: Colors.orange.shade700,
                           ),
+
                           Expanded(
                             child: Center(
                               child: Text(
@@ -269,6 +271,7 @@ class _PricingPageState extends State<PricingPage> {
                               ),
                             ),
                           ),
+
                           IconButton(
                             onPressed:
                             price < product.maxSellPrice
@@ -286,7 +289,9 @@ class _PricingPageState extends State<PricingPage> {
                         ],
                       ),
                     ),
+
                     const SizedBox(height: 8),
+
                     SizedBox(
                       width: double.infinity,
                       child: TextButton(

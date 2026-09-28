@@ -2,7 +2,6 @@ class GameState {
   int money;
   int reputation;
   int day;
-  bool showPinyin;
 
   Map<String, int> inventory;
 
@@ -14,18 +13,16 @@ class GameState {
     this.money = 1000,
     this.reputation = 0,
     this.day = 1,
-    this.showPinyin = true,
     Map<String, int>? inventory,
     Map<String, int>? prices,
   }) : inventory = inventory ?? {},
-       prices = prices ?? {};
+        prices = prices ?? {};
 
   Map<String, dynamic> toJson() {
     return {
       'money': money,
       'reputation': reputation,
       'day': day,
-      'showPinyin': showPinyin,
       'inventory': inventory,
       'prices': prices,
     };
@@ -56,10 +53,15 @@ class GameState {
     }
 
     return GameState(
-      money: json['money'] is num ? json['money'].toInt() : 1000,
-      reputation: json['reputation'] is num ? json['reputation'].toInt() : 0,
-      day: json['day'] is num ? json['day'].toInt() : 1,
-      showPinyin: json['showPinyin'] is bool ? json['showPinyin'] : true,
+      money: json['money'] is num
+          ? json['money'].toInt()
+          : 1000,
+      reputation: json['reputation'] is num
+          ? json['reputation'].toInt()
+          : 0,
+      day: json['day'] is num
+          ? json['day'].toInt()
+          : 1,
       inventory: savedInventory,
       prices: savedPrices,
     );

@@ -17,13 +17,6 @@ class SaveService {
         whereArgs: [1],
       );
 
-      await txn.update(
-        'settings',
-        {'show_pinyin': state.showPinyin ? 1 : 0},
-        where: 'id = ?',
-        whereArgs: [1],
-      );
-
       await txn.delete('inventory');
 
       for (final entry in state.inventory.entries) {
@@ -62,20 +55,12 @@ class SaveService {
       limit: 1,
     );
 
-    final settingsRows = await db.query(
-      'settings',
-      where: 'id = ?',
-      whereArgs: [1],
-      limit: 1,
-    );
-
     final inventoryRows = await db.query('inventory');
     final pricingRows = await db.query('pricing');
 
     int money = 1000;
     int reputation = 0;
     int day = 1;
-    bool showPinyin = true;
 
     if (playerRows.isNotEmpty) {
       final player = playerRows.first;
@@ -83,12 +68,6 @@ class SaveService {
       money = player['money'] as int? ?? 1000;
       reputation = player['reputation'] as int? ?? 0;
       day = player['day'] as int? ?? 1;
-    }
-
-    if (settingsRows.isNotEmpty) {
-      final settings = settingsRows.first;
-
-      showPinyin = (settings['show_pinyin'] as int? ?? 1) == 1;
     }
 
     final inventory = <String, int>{};
@@ -117,7 +96,6 @@ class SaveService {
       money: money,
       reputation: reputation,
       day: day,
-      showPinyin: showPinyin,
       inventory: inventory,
       prices: prices,
     );

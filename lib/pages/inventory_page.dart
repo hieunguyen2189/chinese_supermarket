@@ -4,6 +4,7 @@ import '../data/products.dart';
 import '../models/game_state.dart';
 import '../models/product.dart';
 import '../services/save_service.dart';
+import '../widgets/chinese_text.dart';
 
 class InventoryPage extends StatefulWidget {
   final GameState gameState;
@@ -21,11 +22,13 @@ class InventoryPage extends StatefulWidget {
 
 class _InventoryPageState extends State<InventoryPage> {
   static const int warehouseCapacity = 100;
+
   final Map<String, int> _buyQuantities = {};
 
   @override
   void initState() {
     super.initState();
+
     for (final product in products) {
       _buyQuantities[product.id] = 1;
     }
@@ -34,7 +37,7 @@ class _InventoryPageState extends State<InventoryPage> {
   int get _totalInventory {
     return widget.gameState.inventory.values.fold(
       0,
-      (sum, quantity) => sum + quantity,
+          (sum, quantity) => sum + quantity,
     );
   }
 
@@ -45,7 +48,9 @@ class _InventoryPageState extends State<InventoryPage> {
   void _changeBuyQuantity(Product product, int change) {
     final current = _getBuyQuantity(product);
     final newValue = current + change;
+
     if (newValue < 1) return;
+
     setState(() {
       _buyQuantities[product.id] = newValue;
     });
@@ -58,22 +63,30 @@ class _InventoryPageState extends State<InventoryPage> {
   Future<void> _buyProduct(Product product) async {
     final quantity = _getBuyQuantity(product);
     final totalCost = _totalCost(product);
-    final remainingCapacity = warehouseCapacity - _totalInventory;
+
+    final remainingCapacity =
+        warehouseCapacity - _totalInventory;
+
     if (quantity > remainingCapacity) {
       _showMessage('仓库空间不够。');
       return;
     }
+
     if (totalCost > widget.gameState.money) {
       _showMessage('钱不够。');
       return;
     }
+
     setState(() {
       widget.gameState.money -= totalCost;
       widget.gameState.inventory[product.id] =
           (widget.gameState.inventory[product.id] ?? 0) + quantity;
+
       _buyQuantities[product.id] = 1;
     });
+
     await widget.saveService.saveGame(widget.gameState);
+
     _showMessage('进货成功。');
   }
 
@@ -81,22 +94,29 @@ class _InventoryPageState extends State<InventoryPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 1),
+        ),
       );
   }
 
   @override
   Widget build(BuildContext context) {
     final state = widget.gameState;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('📦 库存')),
+      appBar: AppBar(
+        title: const Text('📦 库存'),
+      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     '💰 ${state.money} 元',
@@ -107,7 +127,9 @@ class _InventoryPageState extends State<InventoryPage> {
                   ),
                   Text(
                     '仓库 $_totalInventory / $warehouseCapacity',
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(
+                      fontSize: 16,
+                    ),
                   ),
                 ],
               ),
@@ -119,34 +141,35 @@ class _InventoryPageState extends State<InventoryPage> {
                 itemCount: products.length,
                 itemBuilder: (context, index) {
                   final product = products[index];
-                  final inventory = state.inventory[product.id] ?? 0;
-                  final buyQuantity = _getBuyQuantity(product);
+                  final inventory =
+                      state.inventory[product.id] ?? 0;
+                  final buyQuantity =
+                  _getBuyQuantity(product);
+
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Text(
-                                product.hanzi,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              if (state.showPinyin)
-                                Text(
-                                  product.pinyin,
-                                  style: TextStyle(
-                                    fontSize: 16,
+                              Expanded(
+                                child: ChineseText(
+                                  text: product.hanzi,
+                                  textStyle: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  pinyinStyle: TextStyle(
+                                    fontSize: 14,
                                     color: Colors.grey.shade700,
                                   ),
                                 ),
-                              const Spacer(),
+                              ),
+                              const SizedBox(width: 10),
                               Text(
                                 '库存 $inventory',
                                 style: const TextStyle(
@@ -165,9 +188,14 @@ class _InventoryPageState extends State<InventoryPage> {
                             children: [
                               IconButton(
                                 onPressed: buyQuantity > 1
-                                    ? () => _changeBuyQuantity(product, -1)
+                                    ? () => _changeBuyQuantity(
+                                  product,
+                                  -1,
+                                )
                                     : null,
-                                icon: const Icon(Icons.remove_circle_outline),
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                ),
                               ),
                               SizedBox(
                                 width: 50,
@@ -181,8 +209,14 @@ class _InventoryPageState extends State<InventoryPage> {
                                 ),
                               ),
                               IconButton(
-                                onPressed: () => _changeBuyQuantity(product, 1),
-                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: () =>
+                                    _changeBuyQuantity(
+                                      product,
+                                      1,
+                                    ),
+                                icon: const Icon(
+                                  Icons.add_circle_outline,
+                                ),
                               ),
                               const Spacer(),
                               Text(
@@ -197,8 +231,11 @@ class _InventoryPageState extends State<InventoryPage> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: () => _buyProduct(product),
-                              icon: const Icon(Icons.shopping_cart),
+                              onPressed: () =>
+                                  _buyProduct(product),
+                              icon: const Icon(
+                                Icons.shopping_cart,
+                              ),
                               label: const Text('进货'),
                             ),
                           ),
