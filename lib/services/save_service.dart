@@ -1,4 +1,5 @@
 import '../database/app_database.dart';
+import '../models/customer_review.dart';
 import '../models/game_state.dart';
 
 class SaveService {
@@ -6,6 +7,29 @@ class SaveService {
     final db = await AppDatabase.instance.database;
 
     await db.transaction((txn) async {
+      await txn.delete('shop_rating');
+
+      await txn.insert('shop_rating', {
+        'id': 1,
+        'rating_tenths': state.shopRatingTenths,
+        'review_count': state.reviewCount,
+      });
+
+      await txn.delete('customer_reviews');
+
+      for (final review in state.customerReviews) {
+        await txn.insert(
+          'customer_reviews',
+          {
+            'day': review.day,
+            'rating_tenths': review.ratingTenths,
+            'served_customers': review.servedCustomers,
+            'skipped_customers': review.skippedCustomers,
+            'total_customers': review.totalCustomers,
+            'comment': review.comment,
+          },
+        );
+      }
       await txn.update(
         'player',
         {
@@ -107,6 +131,46 @@ class SaveService {
     final bagRows = await db.query('bag');
     final orderRows = await db.query('purchase_orders');
     final pricingRows = await db.query('pricing');
+    final ratingRows = await db.query(
+      'shop_rating',
+      where: 'id = ?',
+      whereArgs: [1],
+      limit: 1,
+    );
+    int shopRatingTenths = 50;
+    int reviewCount = 0;
+    if (ratingRows.isNotEmpty) {
+      final rating = ratingRows.first;
+
+      shopRatingTenths =
+          rating['rating_tenths'] as int? ?? 50;
+
+      reviewCount =
+          rating['review_count'] as int? ?? 0;
+    }
+
+    final reviewRows = await db.query(
+      'customer_reviews',
+      orderBy: 'day DESC',
+    );
+
+    final customerReviews = <CustomerReview>[];
+
+    for (final row in reviewRows) {
+      customerReviews.add(
+        CustomerReview(
+          day: row['day'] as int? ?? 1,
+          ratingTenths: row['rating_tenths'] as int? ?? 50,
+          servedCustomers:
+          row['served_customers'] as int? ?? 0,
+          skippedCustomers:
+          row['skipped_customers'] as int? ?? 0,
+          totalCustomers:
+          row['total_customers'] as int? ?? 0,
+          comment: row['comment'] as String? ?? '',
+        ),
+      );
+    }
 
     int money = 1000;
     int reputation = 0;

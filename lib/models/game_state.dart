@@ -1,6 +1,22 @@
 import 'daily_event.dart';
+import 'customer_review.dart';
 
 class GameState {
+  /// 当前超市评分，使用 0.1 星为单位。
+  /// 例如 45 = 4.5 星。
+  int shopRatingTenths;
+
+  /// 已产生的客户评价数量。
+  int reviewCount;
+
+  /// 每日客户评价历史。
+  List<CustomerReview> customerReviews;
+
+  /// 今天成功服务的客户数量。
+  int servedCustomersToday;
+
+  /// 今天跳过/拒绝的客户数量。
+  int skippedCustomersToday;
   int money;
   int reputation;
   int day;
@@ -45,6 +61,11 @@ class GameState {
   Map<String, int> prices;
 
   GameState({
+    this.shopRatingTenths = 50,
+    this.reviewCount = 0,
+    List<CustomerReview>? customerReviews,
+    this.servedCustomersToday = 0,
+    this.skippedCustomersToday = 0,
     this.money = 1000,
     this.reputation = 0,
     this.day = 1,
@@ -64,6 +85,7 @@ class GameState {
   })  : marketTrends = marketTrends ?? {},
         dailyEvents = dailyEvents ?? [],
         warehouse = warehouse ?? inventory ?? {},
+        customerReviews = customerReviews ?? [],
         shelf = shelf ?? {},
         bag = bag ?? {},
         pendingOrders = pendingOrders ?? [],
@@ -104,6 +126,13 @@ class GameState {
       'money': money,
       'reputation': reputation,
       'day': day,
+      'shopRatingTenths': shopRatingTenths,
+      'reviewCount': reviewCount,
+      'customerReviews': customerReviews
+          .map((review) => review.toJson())
+          .toList(),
+      'servedCustomersToday': servedCustomersToday,
+      'skippedCustomersToday': skippedCustomersToday,
       'simulationDay': simulationDay,
       'weather': weather,
       'marketTrends': marketTrends,
@@ -122,6 +151,21 @@ class GameState {
   }
 
   factory GameState.fromJson(Map<String, dynamic> json) {
+    final savedReviews = <CustomerReview>[];
+
+    final reviewsData = json['customerReviews'];
+
+    if (reviewsData is List) {
+      for (final item in reviewsData) {
+        if (item is Map) {
+          savedReviews.add(
+            CustomerReview.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          );
+        }
+      }
+    }
     final savedWarehouse = <String, int>{};
     final savedShelf = <String, int>{};
     final savedBag = <String, int>{};
@@ -220,6 +264,21 @@ class GameState {
     }
 
     return GameState(
+      shopRatingTenths: json['shopRatingTenths'] is num
+          ? json['shopRatingTenths'].toInt()
+          : 50,
+      reviewCount: json['reviewCount'] is num
+          ? json['reviewCount'].toInt()
+          : 0,
+      customerReviews: savedReviews,
+      servedCustomersToday:
+      json['servedCustomersToday'] is num
+          ? json['servedCustomersToday'].toInt()
+          : 0,
+      skippedCustomersToday:
+      json['skippedCustomersToday'] is num
+          ? json['skippedCustomersToday'].toInt()
+          : 0,
       money: json['money'] is num
           ? json['money'].toInt()
           : 1000,

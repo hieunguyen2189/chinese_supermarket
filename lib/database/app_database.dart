@@ -22,7 +22,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE player (
@@ -77,11 +77,37 @@ class AppDatabase {
           )
         ''');
 
+        await db.execute('''
+          CREATE TABLE shop_rating (
+            id INTEGER PRIMARY KEY,
+            rating_tenths INTEGER NOT NULL,
+            review_count INTEGER NOT NULL
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE customer_reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            day INTEGER NOT NULL,
+            rating_tenths INTEGER NOT NULL,
+            served_customers INTEGER NOT NULL,
+            skipped_customers INTEGER NOT NULL,
+            total_customers INTEGER NOT NULL,
+            comment TEXT NOT NULL
+          )
+        ''');
+
         await db.insert('player', {
           'id': 1,
           'money': 1000,
           'reputation': 0,
           'day': 1,
+        });
+
+        await db.insert('shop_rating', {
+          'id': 1,
+          'rating_tenths': 50,
+          'review_count': 0,
         });
       },
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -131,7 +157,6 @@ class AppDatabase {
             )
           ''');
 
-          // Chuyển hàng tồn kho cũ sang kho mới.
           await db.execute('''
             INSERT OR IGNORE INTO warehouse (
               product_id,
@@ -142,6 +167,34 @@ class AppDatabase {
               quantity
             FROM inventory
           ''');
+        }
+
+        if (oldVersion < 5) {
+          await db.execute('''
+            CREATE TABLE shop_rating (
+              id INTEGER PRIMARY KEY,
+              rating_tenths INTEGER NOT NULL,
+              review_count INTEGER NOT NULL
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE customer_reviews (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              day INTEGER NOT NULL,
+              rating_tenths INTEGER NOT NULL,
+              served_customers INTEGER NOT NULL,
+              skipped_customers INTEGER NOT NULL,
+              total_customers INTEGER NOT NULL,
+              comment TEXT NOT NULL
+            )
+          ''');
+
+          await db.insert('shop_rating', {
+            'id': 1,
+            'rating_tenths': 50,
+            'review_count': 0,
+          });
         }
       },
     );

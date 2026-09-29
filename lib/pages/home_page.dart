@@ -9,6 +9,7 @@ import 'purchase_page.dart';
 import 'sales_page.dart';
 import 'shelf_page.dart';
 import 'warehouse_page.dart';
+import 'phone_page.dart';
 
 class HomePage extends StatefulWidget {
   final GameState gameState;
@@ -641,7 +642,21 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+  Future<void> _openPhone() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhonePage(
+          gameState: widget.gameState,
+          saveService: widget.saveService,
+        ),
+      ),
+    );
 
+    if (!mounted) return;
+
+    setState(() {});
+  }
   Widget _buildManagementGrid() {
     return GridView.count(
       crossAxisCount: 2,
@@ -651,6 +666,14 @@ class _HomePageState extends State<HomePage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
+        _buildManagementCard(
+          icon: '📱',
+          title: '手机',
+          subtitle: '查看消息与评价',
+          color: const Color(0xFFEDE7F6),
+          iconColor: Colors.deepPurple,
+          onTap: _openPhone,
+        ),
         _buildManagementCard(
           icon: '📦',
           title: '库房',

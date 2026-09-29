@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/products.dart';
 import '../models/game_state.dart';
 import '../models/product.dart';
+import '../services/customer_review_service.dart';
 import '../services/save_service.dart';
 import '../widgets/chinese_text.dart';
 
@@ -52,6 +53,9 @@ class _SalesPageState extends State<SalesPage> {
   static const int shelfCapacityPerProduct = 10;
 
   final Random _random = Random();
+
+  final CustomerReviewService _customerReviewService =
+  CustomerReviewService();
 
   int _customerIndex = 0;
   int _todayRevenue = 0;
@@ -244,6 +248,38 @@ class _SalesPageState extends State<SalesPage> {
     }
 
     return true;
+  }
+
+  // 当前顾客要求的商品中，只要有一个商品已经完全没货，
+  // 就无法完成这个订单。
+  bool get _hasOrderItemCompletelyOutOfStock {
+    for (final entry in _currentOrder.products.entries) {
+      final shelfStock = _shelfStock(entry.key);
+      final warehouseStock = _warehouseStock(entry.key);
+
+      if (shelfStock <= 0 && warehouseStock <= 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  String? get _outOfStockProductName {
+    for (final entry in _currentOrder.products.entries) {
+      final shelfStock = _shelfStock(entry.key);
+      final warehouseStock = _warehouseStock(entry.key);
+
+      if (shelfStock <= 0 && warehouseStock <= 0) {
+        final product = _findProduct(entry.key);
+
+        if (product != null) {
+          return product.hanzi;
+        }
+      }
+    }
+
+    return null;
   }
 
   @override
@@ -626,7 +662,8 @@ class _SalesPageState extends State<SalesPage> {
               ),
               const SizedBox(height: 12),
               ChineseText(
-                text: '$quantity个 × ${product.buyPrice}元 = $total元',
+                text:
+                '$quantity个 × ${product.buyPrice}元 = $total元',
                 textStyle: const TextStyle(
                   fontSize: 17,
                 ),
@@ -634,7 +671,8 @@ class _SalesPageState extends State<SalesPage> {
               ),
               const SizedBox(height: 10),
               ChineseText(
-                text: '现金：${widget.gameState.money}元',
+                text:
+                '现金：${widget.gameState.money}元',
                 textStyle: const TextStyle(
                   color: Colors.black54,
                 ),
@@ -1046,6 +1084,9 @@ class _SalesPageState extends State<SalesPage> {
 
     _servedCustomers++;
 
+    // 用于每日顾客评价。
+    widget.gameState.servedCustomersToday++;
+
     _todayReputation++;
 
     if (_currentFeedback.contains('太贵') ||
@@ -1086,9 +1127,11 @@ class _SalesPageState extends State<SalesPage> {
       return;
     }
 
+    // 记录跳过的顾客，用于每日评价。
+    widget.gameState.skippedCustomersToday++;
+
     setState(() {
       _customerIndex++;
-      _todayReputation--;
 
       _preparedItems.clear();
       _chargeAmount = 0;
@@ -1107,7 +1150,102 @@ class _SalesPageState extends State<SalesPage> {
     });
   }
 
+  Future<void> _closeEarly() async {
+    if (_busy || _finished) {
+      return;
+    }
+
+    final outOfStockProduct =
+        _outOfStockProductName;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const ChineseText(
+            text: '🚪 提前关门',
+            textStyle: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: ChineseText(
+            text: outOfStockProduct != null
+                ? '$outOfStockProduct 已经完全没货了。\n'
+                '今天剩下的顾客将无法继续服务。\n\n'
+                '确定现在关门吗？'
+                : '确定现在关门吗？\n'
+                '今天剩下的顾客将不再接待。',
+            textStyle: const TextStyle(
+              fontSize: 16,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const ChineseText(
+                text: '继续营业',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const ChineseText(
+                text: '关闭今天',
+                textStyle: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    ) ??
+        false;
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    // 当前顾客 + 后面的顾客全部算作跳过。
+    final remainingCustomers =
+        customersPerDay - _customerIndex;
+
+    if (remainingCustomers > 0) {
+      widget.gameState.skippedCustomersToday +=
+          remainingCustomers;
+    }
+
+    setState(() {
+      _preparedItems.clear();
+      _chargeAmount = 0;
+      _customerPayment = 0;
+      _changeInput = 0;
+      _currentTip = 0;
+      _currentFeedback = '';
+      _customerMessage = '';
+      _finished = true;
+    });
+
+    await widget.saveService.saveGame(widget.gameState);
+  }
+
   Future<void> _nextDay() async {
+    // 当前天结束时先生成并保存顾客评价。
+    final review =
+    _customerReviewService.createDailyReview(
+      widget.gameState,
+    );
+
+    _customerReviewService.applyReview(
+      widget.gameState,
+      review,
+    );
+
     widget.gameState.day++;
     widget.gameState.reputation += _todayReputation;
 
@@ -1279,7 +1417,8 @@ class _SalesPageState extends State<SalesPage> {
                   ),
                   const SizedBox(height: 4),
                   ChineseText(
-                    text: '$_servedCustomers / $customersPerDay',
+                    text:
+                    '$_servedCustomers / $customersPerDay',
                     textStyle: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -1450,6 +1589,9 @@ class _SalesPageState extends State<SalesPage> {
   }
 
   Widget _buildPreparingStage() {
+    final outOfStock = _hasOrderItemCompletelyOutOfStock;
+    final outOfStockProduct = _outOfStockProductName;
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -1476,6 +1618,51 @@ class _SalesPageState extends State<SalesPage> {
               ),
             ),
             const SizedBox(height: 16),
+
+            if (outOfStock) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.red.shade200,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      '⚠️',
+                      style: TextStyle(fontSize: 34),
+                    ),
+                    const SizedBox(height: 6),
+                    ChineseText(
+                      text: outOfStockProduct != null
+                          ? '$outOfStockProduct 已经完全没货了。'
+                          : '顾客需要的商品已经没有库存。',
+                      textStyle: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 5),
+                    const ChineseText(
+                      text: '可以关闭今天的营业。',
+                      textStyle: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+
             _buildPreparedItems(),
             const SizedBox(height: 18),
             const ChineseText(
@@ -1488,6 +1675,7 @@ class _SalesPageState extends State<SalesPage> {
             const SizedBox(height: 10),
             _buildShelfProducts(),
             const SizedBox(height: 18),
+
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -1505,6 +1693,34 @@ class _SalesPageState extends State<SalesPage> {
                 ),
               ),
             ),
+
+            if (outOfStock) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : _closeEarly,
+                  icon: const Icon(
+                    Icons.storefront_outlined,
+                  ),
+                  label: const ChineseText(
+                    text: '🚪 关闭今天',
+                    textStyle: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                    side: BorderSide(
+                      color: Colors.red.shade300,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -1574,7 +1790,8 @@ class _SalesPageState extends State<SalesPage> {
                   children: [
                     Expanded(
                       child: ChineseText(
-                        text: '${product.hanzi} × ${entry.value}',
+                        text:
+                        '${product.hanzi} × ${entry.value}',
                         textStyle: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -1648,7 +1865,8 @@ class _SalesPageState extends State<SalesPage> {
           }
 
           final shelfStock = entry.value;
-          final warehouseStock = _warehouseStock(entry.key);
+          final warehouseStock =
+          _warehouseStock(entry.key);
 
           return Card(
             elevation: 0,
@@ -1693,7 +1911,9 @@ class _SalesPageState extends State<SalesPage> {
                     onPressed: _busy
                         ? null
                         : () {
-                      _fetchFromWarehouse(entry.key);
+                      _fetchFromWarehouse(
+                        entry.key,
+                      );
                     },
                     icon: Icon(
                       warehouseStock > 0
@@ -1745,7 +1965,8 @@ class _SalesPageState extends State<SalesPage> {
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
           children: [
             const ChineseText(
               text: '🧾 购物小票',
@@ -1764,10 +1985,10 @@ class _SalesPageState extends State<SalesPage> {
                 }
 
                 final price = _sellPrice(entry.key);
-                final lineTotal = price * entry.value;
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  padding:
+                  const EdgeInsets.symmetric(vertical: 9),
                   child: Row(
                     children: [
                       Expanded(
@@ -1904,7 +2125,8 @@ class _SalesPageState extends State<SalesPage> {
             if (_currentTip > 0) ...[
               const SizedBox(height: 8),
               ChineseText(
-                text: '顾客似乎多给了 $_currentTip 元。',
+                text:
+                '顾客似乎多给了 $_currentTip 元。',
                 textStyle: const TextStyle(
                   fontSize: 15,
                   color: Colors.orange,
@@ -1966,7 +2188,8 @@ class _SalesPageState extends State<SalesPage> {
             ),
             const SizedBox(height: 14),
             ChineseText(
-              text: '顾客给了 $_customerPayment 元。',
+              text:
+              '顾客给了 $_customerPayment 元。',
               textStyle: const TextStyle(
                 fontSize: 17,
               ),
@@ -2074,7 +2297,8 @@ class _SalesPageState extends State<SalesPage> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: ChineseText(
-                  text: '顾客给了你 $_currentTip 元小费。',
+                  text:
+                  '顾客给了你 $_currentTip 元小费。',
                   textStyle: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -2221,7 +2445,8 @@ class _SalesPageState extends State<SalesPage> {
                     ),
                     const SizedBox(height: 8),
                     ChineseText(
-                      text: '第 ${widget.gameState.day} 天',
+                      text:
+                      '第 ${widget.gameState.day} 天',
                       textStyle: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -2251,7 +2476,8 @@ class _SalesPageState extends State<SalesPage> {
                     const Divider(height: 28),
                     _buildResultRow(
                       '毛利润',
-                      '${grossProfit >= 0 ? '+' : ''}$grossProfit 元',
+                      '${grossProfit >= 0 ? '+' : ''}'
+                          '$grossProfit 元',
                       valueColor: grossProfit >= 0
                           ? Colors.green
                           : Colors.red,
@@ -2259,7 +2485,8 @@ class _SalesPageState extends State<SalesPage> {
                     ),
                     _buildResultRow(
                       '声望',
-                      '${_todayReputation >= 0 ? '+' : ''}$_todayReputation',
+                      '${_todayReputation >= 0 ? '+' : ''}'
+                          '$_todayReputation',
                       valueColor: _todayReputation >= 0
                           ? Colors.blue
                           : Colors.red,
@@ -2355,8 +2582,7 @@ class _SalesPageState extends State<SalesPage> {
               text: label,
               textStyle: TextStyle(
                 fontSize: large ? 19 : 16,
-                fontWeight:
-                large
+                fontWeight: large
                     ? FontWeight.bold
                     : FontWeight.normal,
               ),
