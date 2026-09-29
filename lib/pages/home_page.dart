@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../models/game_state.dart';
+import '../services/daily_simulation_service.dart';
 import '../services/save_service.dart';
 import '../widgets/chinese_text.dart';
-import 'inventory_page.dart';
 import 'pricing_page.dart';
+import 'purchase_page.dart';
 import 'sales_page.dart';
+import 'shelf_page.dart';
+import 'warehouse_page.dart';
 
 class HomePage extends StatefulWidget {
   final GameState gameState;
@@ -22,18 +25,313 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final DailySimulationService _dailySimulationService =
+  DailySimulationService();
+
+  int _shownSimulationDay = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _processMorningDelivery();
+    });
+  }
+
+  Future<void> _processMorningDelivery() async {
+    final state = widget.gameState;
+
+    // Prepare the daily simulation only once for the current day.
+    if (state.simulationDay != state.day) {
+      await _dailySimulationService.prepareDay(state);
+
+      await widget.saveService.saveGame(state);
+    }
+
+    final arrivedOrders = state.pendingOrders
+        .where((order) => order.arrivalDay <= state.day)
+        .toList();
+
+    final deliveredProducts = <String, int>{};
+
+    if (arrivedOrders.isNotEmpty) {
+      for (final order in arrivedOrders) {
+        state.warehouse[order.productId] =
+            (state.warehouse[order.productId] ?? 0) +
+                order.quantity;
+
+        deliveredProducts[order.productId] =
+            (deliveredProducts[order.productId] ?? 0) +
+                order.quantity;
+      }
+
+      state.pendingOrders.removeWhere(
+            (order) => order.arrivalDay <= state.day,
+      );
+
+      await widget.saveService.saveGame(state);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
+
+    // Show daily simulation only once when entering this day.
+    if (_shownSimulationDay != state.day) {
+      _shownSimulationDay = state.day;
+
+      await _showDailySimulationDialog();
+
+      if (!mounted) {
+        return;
+      }
+    }
+
+    if (deliveredProducts.isNotEmpty) {
+      await _showDeliveryDialog(deliveredProducts);
+    }
+  }
+
+  Future<void> _showDailySimulationDialog() async {
+    final state = widget.gameState;
+
+    final weatherText = _getWeatherText(state.weather);
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const ChineseText(
+            text: '🌅 今天的情况',
+            textStyle: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '🌤️',
+                      style: TextStyle(fontSize: 30),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ChineseText(
+                        text: weatherText,
+                        textStyle: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                if (state.dailyEvents.isNotEmpty) ...[
+                  const ChineseText(
+                    text: '今天发生了什么',
+                    textStyle: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...state.dailyEvents.map(
+                        (event) => Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ChineseText(
+                            text: event.title,
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ChineseText(
+                            text: event.description,
+                            textStyle: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black54,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                const ChineseText(
+                  text: '今天的生意会受到这些情况影响。',
+                  textStyle: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const ChineseText(
+                text: '好的',
+                textStyle: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _getWeatherText(String weather) {
+    switch (weather) {
+      case 'sunny':
+        return '今天天气很好';
+      case 'cloudy':
+        return '今天是阴天';
+      case 'rainy':
+        return '今天下雨了';
+      case 'hot':
+        return '今天很热';
+      default:
+        return '今天的天气不错';
+    }
+  }
+
+  Future<void> _showDeliveryDialog(
+      Map<String, int> deliveredProducts,
+      ) async {
+    final items = <Widget>[];
+
+    for (final entry in deliveredProducts.entries) {
+      items.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            children: [
+              const Text(
+                '📦',
+                style: TextStyle(fontSize: 24),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ChineseText(
+                  text:
+                  '${_getProductName(entry.key)} × ${entry.value}',
+                  textStyle: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const ChineseText(
+            text: '🚚 货到了！',
+            textStyle: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ChineseText(
+                text: '今天的订单已经送到仓库。',
+                textStyle: TextStyle(
+                  fontSize: 15,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 14),
+              ...items,
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const ChineseText(
+                text: '好的',
+                textStyle: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _getProductName(String productId) {
+    switch (productId) {
+      case 'apple':
+        return '苹果';
+      case 'banana':
+        return '香蕉';
+      case 'water':
+        return '水';
+      case 'milk':
+        return '牛奶';
+      case 'bread':
+        return '面包';
+      default:
+        return productId;
+    }
+  }
+
   Future<void> _startBusiness() async {
-    final hasInventory = widget.gameState.inventory.values.any(
+    final hasShelfStock = widget.gameState.shelf.values.any(
           (quantity) => quantity > 0,
     );
 
-    if (!hasInventory) {
+    if (!hasShelfStock) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
             content: ChineseText(
-              text: '请先进货。',
+              text: '请先把商品放到货架上。',
               textStyle: TextStyle(
                 color: Colors.white,
               ),
@@ -56,13 +354,50 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted) return;
 
+    await _processMorningDelivery();
+
+    if (!mounted) return;
+
     setState(() {});
   }
-  Future<void> _openInventory() async {
+
+  Future<void> _openWarehouse() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => InventoryPage(
+        builder: (context) => WarehousePage(
+          gameState: widget.gameState,
+          saveService: widget.saveService,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> _openShelf() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ShelfPage(
+          gameState: widget.gameState,
+          saveService: widget.saveService,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  Future<void> _openPurchase() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PurchasePage(
           gameState: widget.gameState,
           saveService: widget.saveService,
         ),
@@ -86,12 +421,6 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (!mounted) return;
-
-    debugPrint(
-      'HOME AFTER PRICING: '
-          'gameState=${identityHashCode(widget.gameState)}, '
-          'prices=${widget.gameState.prices}',
-    );
 
     setState(() {});
   }
@@ -324,11 +653,27 @@ class _HomePageState extends State<HomePage> {
       children: [
         _buildManagementCard(
           icon: '📦',
-          title: '库存',
-          subtitle: '查看商品',
+          title: '库房',
+          subtitle: '仓库 → 背包',
           color: const Color(0xFFE3F2FD),
           iconColor: Colors.blue,
-          onTap: _openInventory,
+          onTap: _openWarehouse,
+        ),
+        _buildManagementCard(
+          icon: '🛒',
+          title: '卖场',
+          subtitle: '背包 → 货架',
+          color: const Color(0xFFE8F5E9),
+          iconColor: Colors.green,
+          onTap: _openShelf,
+        ),
+        _buildManagementCard(
+          icon: '🛒',
+          title: '进货',
+          subtitle: '订购商品',
+          color: const Color(0xFFFFF3E0),
+          iconColor: Colors.deepOrange,
+          onTap: _openPurchase,
         ),
         _buildManagementCard(
           icon: '🏷️',
@@ -337,14 +682,6 @@ class _HomePageState extends State<HomePage> {
           color: const Color(0xFFFFEAD5),
           iconColor: Colors.deepOrange,
           onTap: _openPricing,
-        ),
-        _buildManagementCard(
-          icon: '🛒',
-          title: '进货',
-          subtitle: '补充商品',
-          color: const Color(0xFFE8F5E9),
-          iconColor: Colors.green,
-          onTap: _openInventory,
         ),
         _buildManagementCard(
           icon: '📊',
@@ -386,9 +723,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       icon,
-                      style: const TextStyle(
-                        fontSize: 34,
-                      ),
+                      style: const TextStyle(fontSize: 34),
                     ),
                     const SizedBox(height: 8),
                     ChineseText(
@@ -419,9 +754,7 @@ class _HomePageState extends State<HomePage> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(
-                          alpha: 0.7,
-                        ),
+                        color: Colors.white.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Text(
@@ -476,7 +809,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   SizedBox(height: 4),
                   ChineseText(
-                    text: '进货并开始营业',
+                    text: '进货、补货并开始营业',
                     textStyle: TextStyle(
                       fontSize: 14,
                       color: Colors.black54,

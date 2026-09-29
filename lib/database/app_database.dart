@@ -22,7 +22,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE player (
@@ -37,6 +37,36 @@ class AppDatabase {
           CREATE TABLE inventory (
             product_id TEXT PRIMARY KEY,
             quantity INTEGER NOT NULL
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE warehouse (
+            product_id TEXT PRIMARY KEY,
+            quantity INTEGER NOT NULL
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE shelf (
+            product_id TEXT PRIMARY KEY,
+            quantity INTEGER NOT NULL
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE bag (
+            product_id TEXT PRIMARY KEY,
+            quantity INTEGER NOT NULL
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE purchase_orders (
+            product_id TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            arrival_day INTEGER NOT NULL,
+            PRIMARY KEY (product_id, arrival_day)
           )
         ''');
 
@@ -65,7 +95,53 @@ class AppDatabase {
         }
 
         if (oldVersion < 3) {
-          await db.execute('DROP TABLE IF EXISTS settings');
+          await db.execute(
+            'DROP TABLE IF EXISTS settings',
+          );
+        }
+
+        if (oldVersion < 4) {
+          await db.execute('''
+            CREATE TABLE warehouse (
+              product_id TEXT PRIMARY KEY,
+              quantity INTEGER NOT NULL
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE shelf (
+              product_id TEXT PRIMARY KEY,
+              quantity INTEGER NOT NULL
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE bag (
+              product_id TEXT PRIMARY KEY,
+              quantity INTEGER NOT NULL
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE purchase_orders (
+              product_id TEXT NOT NULL,
+              quantity INTEGER NOT NULL,
+              arrival_day INTEGER NOT NULL,
+              PRIMARY KEY (product_id, arrival_day)
+            )
+          ''');
+
+          // Chuyển hàng tồn kho cũ sang kho mới.
+          await db.execute('''
+            INSERT OR IGNORE INTO warehouse (
+              product_id,
+              quantity
+            )
+            SELECT
+              product_id,
+              quantity
+            FROM inventory
+          ''');
         }
       },
     );

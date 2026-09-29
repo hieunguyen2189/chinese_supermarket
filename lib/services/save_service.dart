@@ -17,17 +17,39 @@ class SaveService {
         whereArgs: [1],
       );
 
-      await txn.delete('inventory');
+      await _replaceStock(
+        txn,
+        'warehouse',
+        state.warehouse,
+      );
 
-      for (final entry in state.inventory.entries) {
-        if (entry.value <= 0) {
+      await _replaceStock(
+        txn,
+        'shelf',
+        state.shelf,
+      );
+
+      await _replaceStock(
+        txn,
+        'bag',
+        state.bag,
+      );
+
+      await txn.delete('purchase_orders');
+
+      for (final order in state.pendingOrders) {
+        if (order.quantity <= 0) {
           continue;
         }
 
-        await txn.insert('inventory', {
-          'product_id': entry.key,
-          'quantity': entry.value,
-        });
+        await txn.insert(
+          'purchase_orders',
+          {
+            'product_id': order.productId,
+            'quantity': order.quantity,
+            'arrival_day': order.arrivalDay,
+          },
+        );
       }
 
       await txn.delete('pricing');
@@ -37,12 +59,37 @@ class SaveService {
           continue;
         }
 
-        await txn.insert('pricing', {
-          'product_id': entry.key,
-          'sell_price': entry.value,
-        });
+        await txn.insert(
+          'pricing',
+          {
+            'product_id': entry.key,
+            'sell_price': entry.value,
+          },
+        );
       }
     });
+  }
+
+  Future<void> _replaceStock(
+      dynamic txn,
+      String table,
+      Map<String, int> stock,
+      ) async {
+    await txn.delete(table);
+
+    for (final entry in stock.entries) {
+      if (entry.value <= 0) {
+        continue;
+      }
+
+      await txn.insert(
+        table,
+        {
+          'product_id': entry.key,
+          'quantity': entry.value,
+        },
+      );
+    }
   }
 
   Future<GameState> loadGame() async {
@@ -55,7 +102,10 @@ class SaveService {
       limit: 1,
     );
 
-    final inventoryRows = await db.query('inventory');
+    final warehouseRows = await db.query('warehouse');
+    final shelfRows = await db.query('shelf');
+    final bagRows = await db.query('bag');
+    final orderRows = await db.query('purchase_orders');
     final pricingRows = await db.query('pricing');
 
     int money = 1000;
@@ -70,14 +120,56 @@ class SaveService {
       day = player['day'] as int? ?? 1;
     }
 
-    final inventory = <String, int>{};
+    final warehouse = <String, int>{};
 
-    for (final row in inventoryRows) {
+    for (final row in warehouseRows) {
       final productId = row['product_id'] as String?;
       final quantity = row['quantity'] as int?;
 
       if (productId != null && quantity != null) {
-        inventory[productId] = quantity;
+        warehouse[productId] = quantity;
+      }
+    }
+
+    final shelf = <String, int>{};
+
+    for (final row in shelfRows) {
+      final productId = row['product_id'] as String?;
+      final quantity = row['quantity'] as int?;
+
+      if (productId != null && quantity != null) {
+        shelf[productId] = quantity;
+      }
+    }
+
+    final bag = <String, int>{};
+
+    for (final row in bagRows) {
+      final productId = row['product_id'] as String?;
+      final quantity = row['quantity'] as int?;
+
+      if (productId != null && quantity != null) {
+        bag[productId] = quantity;
+      }
+    }
+
+    final pendingOrders = <PurchaseOrder>[];
+
+    for (final row in orderRows) {
+      final productId = row['product_id'] as String?;
+      final quantity = row['quantity'] as int?;
+      final arrivalDay = row['arrival_day'] as int?;
+
+      if (productId != null &&
+          quantity != null &&
+          arrivalDay != null) {
+        pendingOrders.add(
+          PurchaseOrder(
+            productId: productId,
+            quantity: quantity,
+            arrivalDay: arrivalDay,
+          ),
+        );
       }
     }
 
@@ -96,7 +188,10 @@ class SaveService {
       money: money,
       reputation: reputation,
       day: day,
-      inventory: inventory,
+      warehouse: warehouse,
+      shelf: shelf,
+      bag: bag,
+      pendingOrders: pendingOrders,
       prices: prices,
     );
   }
